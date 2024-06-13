@@ -1,5 +1,8 @@
 import RPi.GPIO as GPIO
 import time
+from pubnub.pnconfiguration import PNConfiguration
+from pubnub.pubnub import PubNub
+from pubnub.exceptions import PubNubException
 
 # 设置GPIO模式
 GPIO.setmode(GPIO.BCM)
@@ -13,6 +16,14 @@ BUZZER_PIN = 4
 GPIO.setup(TRIG_PIN, GPIO.OUT)
 GPIO.setup(ECHO_PIN, GPIO.IN)
 GPIO.setup(BUZZER_PIN, GPIO.OUT)
+
+# PubNub配置
+pnconfig = PNConfiguration()
+pnconfig.publish_key = 'your_publish_key'
+pnconfig.subscribe_key = 'your_subscribe_key'
+pnconfig.ssl = True
+
+pubnub = PubNub(pnconfig)
 
 def measure_distance():
     # 触发超声波脉冲
@@ -39,11 +50,23 @@ def measure_distance():
 
     return distance
 
+def send_data_to_pubnub(distance, new_delay):
+    try:
+        envelope = pubnub.publish().channel('sensor_data').message({
+            'distance': distance,
+            'buzzer_duration': new_delay
+        }).sync()
+        print("publish timetoken: %d" % envelope.result.timetoken)
+    except PubNubException as e:
+        print(e)
+
 try:
     while True:
         distance = measure_distance()
         new_delay = (distance * 3) + 30
         print(f"Measured Distance = {distance:.1f} cm")
+
+        send_data_to_pubnub(distance, new_delay)
 
         if distance < 50:
             GPIO.output(BUZZER_PIN, GPIO.HIGH)
