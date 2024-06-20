@@ -48,11 +48,13 @@ def measure_distance():
 
 def capture_picture():
     camera.start()
-    image = camera.capture_array()
-    camera.stop()
     buffered = io.BytesIO()
-    buffered.write(image.tobytes())
-    pic_data = base64.b64encode(buffered.getvalue()).decode("utf-8")
+    # capture
+    camera.capture_file(buffered, format='jpeg')
+    camera.stop()
+    # encode using base64 and decode to string
+    pic_data = base64.b64encode(buffered.getvalue()).decode()
+    print(pic_data)
     buffered.close()
     return pic_data
 
@@ -65,18 +67,15 @@ try:
         if distance < 10:
             time_data = time.time()   # record the time
             pic_data = capture_picture()   # capture the picture
-            chunk_size = 7200   # slice the data to meet the size requirement
-            chunks = [pic_data[i: i+chunk_size] for i in range(0, len(pic_data), chunk_size)]
-            print(len(chunks))
+            
             # send the data
-            for i, chunk in enumerate(chunks):
-                message = {"timestamp": time_data,
-                           "dis_data": distance,
-                           "chunk_index": i+1,
-                           "pic_chunk": chunk
-                           }
-                envelope = pubnub.publish().channel("769channel").message(message).use_post(True).sync()
-                print(i, chunk)
+            message = {
+                "timestamp": time_data,
+                "dis_data": distance,
+                "pic_data": pic_data
+            }
+            envelope = pubnub.publish().channel("769channel").message(message).use_post(True).sync()
+            
             # activate the buzzer for 1 second as warning
             GPIO.output(BUZZER_PIN, GPIO.HIGH)
             time.sleep(1)
